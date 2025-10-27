@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SigHi</string>
+    <string name="scan_qr">Escanear QR</string>
+    <string name="settings">Configuración</string>
+    <string name="home">Inicio</string>
+    <string name="reload">Recargar</string>
+    <string name="configuraci_n_del_servidor">Configuración del Servidor</string>
+    <string name="direcci_n_ip">Dirección IP</string>
+    <string name="nr_ip">192.168.1.40</string>
+    <string name="puerto">Puerto</string>
+    <string name="puerto_text">3030</string>
+    <string name="guardar_configuraci_n">Guardar Configuración</string>
+    <string name="restablecer_valores_button">Restablecer Valores</string>
+    <string name="url_actual_text">URL actual:</string>
+    <string name="ruta_ejemplo">http://192.168.1.40:3030</string>
+</resources>
