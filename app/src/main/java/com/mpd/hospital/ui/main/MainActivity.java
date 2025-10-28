@@ -41,10 +41,9 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     private NavigationViewModel viewModel;
     private ConfigManager configManager;
-   // private FCMTokenManager fcmTokenManager;
     private ActivityResultLauncher<String> requestPermissionLauncher;
     private ActivityResultLauncher<ScanOptions> qrScanLauncher;
-    //private final String HOME_URL = "http://192.168.1.40:3000/";
+
 
 
     @Override
@@ -75,18 +74,7 @@ public class MainActivity extends AppCompatActivity {
         loadHomePage();
     }
 
-    private void setupQRScanner() {
-        qrScanLauncher = registerForActivityResult(
-                new ScanContract(),
-                result -> {
-                    if (result.getContents() != null) {
-                        handleQRCode(result.getContents());
-                    } else {
-                        Toast.makeText(this, "Escaneo cancelado", Toast.LENGTH_SHORT).show();
-                    }
-                }
-        );
-    }
+
 
     private void setupPermissions() {
         requestPermissionLauncher = registerForActivityResult(
@@ -104,6 +92,19 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS);
         }
+    }
+
+    private void setupQRScanner() {
+        qrScanLauncher = registerForActivityResult(
+                new ScanContract(),
+                result -> {
+                    if (result.getContents() != null) {
+                        handleQRCode(result.getContents());
+                    } else {
+                        Toast.makeText(this, "Escaneo cancelado", Toast.LENGTH_SHORT).show();
+                    }
+                }
+        );
     }
 
     private void enviarDatosAlServidor(String userId, String fcmToken) {
@@ -183,6 +184,23 @@ public class MainActivity extends AppCompatActivity {
 
 
 private void setupWebView() {
+    binding.swipeRefreshLayout.setOnRefreshListener(() -> {
+        Log.d("SwipeRefresh", "Recarga manual iniciada por el usuario.");
+        // Accedemos a la webview también a través del binding
+        binding.webView.reload();
+    });
+
+    // 4. Configurar el cliente de la WebView para detener el spinner
+    binding.webView.setWebViewClient(new WebViewClient() {
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            super.onPageFinished(view, url);
+            // Si el spinner está activo, lo detenemos.
+            if (binding.swipeRefreshLayout.isRefreshing()) {
+                binding.swipeRefreshLayout.setRefreshing(false);
+            }
+        }
+    });
     WebSettings webSettings = binding.webView.getSettings();
 
     webSettings.setJavaScriptEnabled(true);
@@ -190,54 +208,48 @@ private void setupWebView() {
     webSettings.setLoadWithOverviewMode(true);
     webSettings.setUseWideViewPort(true);
     webSettings.setBuiltInZoomControls(true);
-
     webSettings.setDisplayZoomControls(false);
-
-    // 1. Mantener este, que es fundamental y no está obsoleto
     webSettings.setAllowFileAccess(true);
 
-    // 2. Eliminar o comentar las dos líneas obsoletas (las tachadas)
-    // webSettings.setAllowFileAccessFromFileURLs(true);
-    // webSettings.setAllowUniversalAccessFromFileURLs(true);
 
-    // ... Asignación de WebViewClient (con tu CustomWebViewClient) ...
-
-    // 💡 Asegúrate de asignar la interfaz JavaScript AQUI
+    // 💡 interfaz JavaScript
     binding.webView.addJavascriptInterface(new WebAppInterface(this), "Android");
 
-
-    // 1. Asignar un solo WebViewClient que gestione navegación y errores
-    // Usamos el CustomWebViewClient, que debe contener TODA la lógica del cliente.
-    binding.webView.setWebViewClient(new CustomWebViewClient());
-
-    // 2. Asignar el WebChromeClient para manejar el progreso
-    binding.webView.setWebChromeClient(new WebChromeClient() {
+    binding.webView.setWebViewClient(new CustomWebViewClient(){
+        // Se llama CADA VEZ que una nueva página está A PUNTO de empezar a cargarse.
         @Override
-        public void onProgressChanged(WebView view, int newProgress) {
-
-            if (newProgress < 100) {
-                // Mostrar la barra y actualizar el progreso
-                // Usando binding.progressBar, asumiendo ese es el ID de tu ProgressBar
-                binding.idProgressBar.setVisibility(View.VISIBLE);
-                binding.idProgressBar.setProgress(newProgress);
-            } else { // newProgress == 100
-                // Carga completada, ocultar la barra
-                binding.idProgressBar.setVisibility(View.GONE);
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            super.onPageStarted(view, url, favicon);
+            // Aunque el usuario no haya deslizado, si empieza una carga nueva,
+            // es buena idea mostrar el spinner para dar feedback visual.
+            if (!binding.swipeRefreshLayout.isRefreshing()) {
+                binding.swipeRefreshLayout.setRefreshing(true);
             }
-            // La llamada al super es obligatoria en WebChromeClient
-            super.onProgressChanged(view, newProgress);
         }
+
+        // Se llama cuando la página (y todas sus redirecciones) ha TERMINADO de cargarse.
+        @Override
+        public void onPageFinished(WebView view, String url) {
+            super.onPageFinished(view, url);
+            // Ahora sí, cuando todo ha terminado, ocultamos el spinner.
+            if (binding.swipeRefreshLayout.isRefreshing()) {
+                binding.swipeRefreshLayout.setRefreshing(false);
+            }
+        }
+
+
     });
+
+
+
 
 
 }
 
     public class WebAppInterface {
 
-        // Cambia el Context por la referencia a MainActivity
-        private final MainActivity activity;
 
-        // Solo necesitamos la Activity para llamar a los métodos de recarga
+        private final MainActivity activity;
         WebAppInterface(MainActivity activity) {
             this.activity = activity;
         }
@@ -264,12 +276,8 @@ private void setupWebView() {
          */
         @android.webkit.JavascriptInterface
         public void recibirUsuarioId(String userId) {
-            // Imprimimos en Logcat para confirmar que la llamada desde JavaScript funcionó.
-            // Esto es crucial para la depuración.
-            Log.d("WebAppInterface", "ID de usuario recibido desde la web: " + userId);
 
-            // ¡YA TENEMOS EL ID DEL USUARIO!
-            // Ahora necesitamos combinarlo con el TOKEN FCM y enviarlo al servidor.
+            Log.d("WebAppInterface", "ID de usuario recibido desde la web: " + userId);
 
             // Llamamos a un método en MainActivity para que se encargue de la lógica.
             // Pasarle el `userId` a la Activity principal es una buena práctica
@@ -297,7 +305,6 @@ private void setupWebView() {
 
         // 1. Obtener el token FCM desde SharedPreferences
         SharedPreferences prefs = getSharedPreferences("FCM_PREFS", Context.MODE_PRIVATE);
-        // Leemos el valor guardado. Si no existe, devolvemos null.
         String fcmToken = prefs.getString("FCM_TOKEN", null);
 
         // 2. Comprobar que tenemos ambos datos
@@ -330,16 +337,16 @@ private void setupWebView() {
     public void reloadAndShowProgress() {
         // 1. Mostrar la barra de progreso ANTES de la recarga
         // Esto es opcional si el WebChromeClient ya lo hace, pero da una respuesta inmediata
-        binding.idProgressBar.setVisibility(View.VISIBLE);
+
 
         // 2. Llamar a tu método existente para cargar la URL (obtenida del ViewModel)
         loadHomePage();
 
         // 3. Ocultar la pantalla de error (si la tuvieras visible en el XML)
         // (Asegúrate de que este layout de error exista en tu XML)
-        // if (binding.errorLayout != null) {
-        //     binding.errorLayout.setVisibility(View.GONE);
-        // }
+//         if (binding.errorLayout != null) {
+//             binding.errorLayout.setVisibility(View.GONE);
+//         }
     }
 
 
@@ -421,7 +428,7 @@ private void setupWebView() {
         String url = viewModel.buildUrlFromQR(qrData);
         if(!url.isEmpty()){
             //binding.webView.loadUrl(url);
-            Toast.makeText(this, "Cargando: " + qrData, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Cargando: " + url, Toast.LENGTH_SHORT).show();
         }else{
             Toast.makeText(this, "Qr corrupto: " + qrData  , Toast.LENGTH_SHORT).show();
         }
@@ -445,9 +452,7 @@ private void setupWebView() {
 
         } else if (id == com.mpd.hospital.R.id.action_home) {
             loadHomePage();
-            return true;
-        } else if (id == com.mpd.hospital.R.id.action_reload) {
-            binding.webView.reload();
+            Toast.makeText(this, "Home: " + getHomPage(), Toast.LENGTH_SHORT).show();
             return true;
         }
 

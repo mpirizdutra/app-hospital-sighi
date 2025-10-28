@@ -12,7 +12,7 @@ public class NavigationViewModel {
     private ConfigManager configManager;
     private String baseUrl;
     private String codigoQr;
-    private String parametro="/buscar-equipo/";
+    private String parametro="/api/dependencias/equipos/";
     public NavigationViewModel(ConfigManager configManager) {
         this.configManager = configManager;
         this.baseUrl = buildBaseUrl();
