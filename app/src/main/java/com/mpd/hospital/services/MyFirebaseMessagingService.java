@@ -5,8 +5,10 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.util.Log;
+import  android.content.Context;
 import androidx.core.app.NotificationCompat;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
@@ -41,9 +43,22 @@ public class MyFirebaseMessagingService extends FirebaseMessagingService {
     public void onNewToken(String token) {
         super.onNewToken(token);
         Log.d(TAG, "Nuevo token FCM: " + token);
-
+        guardarTokenEnPrefs(token);
         // Enviar el token a tu servidor
-        sendTokenToServer(token);
+       // sendTokenToServer(token);
+    }
+
+    private void guardarTokenEnPrefs(String token) {
+        // Obtenemos una referencia a nuestro archivo de preferencias "FCM_PREFS"
+        SharedPreferences prefs = getSharedPreferences("FCM_PREFS", Context.MODE_PRIVATE);
+        // Obtenemos un editor para poder escribir en él
+        SharedPreferences.Editor editor = prefs.edit();
+        // Guardamos el token con la clave "FCM_TOKEN"
+        editor.putString("FCM_TOKEN", token);
+        // Aplicamos los cambios
+        editor.apply();
+
+        Log.d(TAG, "Token guardado en SharedPreferences.");
     }
 
     private void showNotification(String title, String body) {

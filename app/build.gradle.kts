@@ -49,6 +49,8 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
     implementation(libs.firebase.analytics)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
     // Firebase Cloud Messaging
 //    implementation(platform("com.google.firebase:firebase-bom:32.0.0"))
 ////    implementation("com.google.firebase:firebase-messaging")

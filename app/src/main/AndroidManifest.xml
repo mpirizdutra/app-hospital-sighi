@@ -20,7 +20,8 @@
         android:roundIcon="@drawable/ic_logo_redondo"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config">
 
         <!-- TUS ACTIVITIES (esto está bien) -->
         <activity

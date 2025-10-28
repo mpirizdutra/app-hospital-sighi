@@ -1,10 +1,12 @@
 package com.mpd.hospital.ui.main;
 
-import android.app.Activity;
+
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -14,7 +16,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.ProgressBar;
+
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
@@ -26,16 +28,23 @@ import com.mpd.hospital.data.ConfigManager;
 import com.mpd.hospital.databinding.ActivityMainBinding;
 import com.mpd.hospital.ui.settings.SettingsActivity;
 import com.mpd.hospital.viewmodel.NavigationViewModel;
+import com.mpd.hospital.network.ApiService;
+import com.mpd.hospital.network.RegistroDispositivoRequest;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
 
 public class MainActivity extends AppCompatActivity {
-
+    private ApiService apiService;
     private ActivityMainBinding binding;
     private NavigationViewModel viewModel;
     private ConfigManager configManager;
    // private FCMTokenManager fcmTokenManager;
     private ActivityResultLauncher<String> requestPermissionLauncher;
     private ActivityResultLauncher<ScanOptions> qrScanLauncher;
-    private final String HOME_URL = "http://192.168.1.40:3000/";
+    //private final String HOME_URL = "http://192.168.1.40:3000/";
 
 
     @Override
@@ -43,11 +52,18 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-
+       // WebView.setWebContentsDebuggingEnabled(true);
 
         configManager = new ConfigManager(this);
         viewModel = new NavigationViewModel(configManager);
+        // Configurar Retrofit
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(getHomPage())
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
 
+        // Crear una implementación de nuestra interfaz ApiService
+        apiService = retrofit.create(ApiService.class);
 
 
         setupPermissions();
@@ -90,6 +106,36 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void enviarDatosAlServidor(String userId, String fcmToken) {
+        // 1. Crear el objeto que enviaremos en el cuerpo de la petición
+        RegistroDispositivoRequest requestBody = new RegistroDispositivoRequest(userId, fcmToken);
+
+        // 2. Crear la llamada a la API usando la interfaz
+        Call<Void> call = apiService.registrarDispositivo(requestBody);
+
+        Log.d("enviarDatosAlServidor", "Enviando datos al servidor...");
+
+        // 3. Ejecutar la llamada de forma asíncrona (en un hilo secundario)
+        call.enqueue(new Callback<Void>() {
+            @Override
+            public void onResponse(Call<Void> call, Response<Void> response) {
+                // Este método se ejecuta cuando el servidor responde
+                if (response.isSuccessful()) {
+                    // Código 200-299: ¡Éxito!
+                    Log.d("enviarDatosAlServidor", "Dispositivo registrado en el servidor exitosamente. Código: " + response.code());
+                } else {
+                    // El servidor respondió con un error (ej: 400, 404, 500)
+                    Log.e("enviarDatosAlServidor", "Error al registrar en el servidor. Código: " + response.code());
+                }
+            }
+
+            @Override
+            public void onFailure(Call<Void> call, Throwable t) {
+                // Este método se ejecuta si hubo un error de red (ej: sin internet, URL incorrecta)
+                Log.e("enviarDatosAlServidor", "Fallo en la llamada de red: " + t.getMessage());
+            }
+        });
+    }
 
 
     private void checkForNotificationIntent() {
@@ -208,8 +254,78 @@ private void setupWebView() {
                 }
             });
         }
+
+        /**
+         * Este método es llamado por JavaScript después de un login exitoso.
+         * Recibe el ID del usuario desde la página web.
+         * La anotación @JavascriptInterface es OBLIGATORIA.
+         *
+         * @param userId El ID del usuario que viene como un String desde la web.
+         */
+        @android.webkit.JavascriptInterface
+        public void recibirUsuarioId(String userId) {
+            // Imprimimos en Logcat para confirmar que la llamada desde JavaScript funcionó.
+            // Esto es crucial para la depuración.
+            Log.d("WebAppInterface", "ID de usuario recibido desde la web: " + userId);
+
+            // ¡YA TENEMOS EL ID DEL USUARIO!
+            // Ahora necesitamos combinarlo con el TOKEN FCM y enviarlo al servidor.
+
+            // Llamamos a un método en MainActivity para que se encargue de la lógica.
+            // Pasarle el `userId` a la Activity principal es una buena práctica
+            // para mantener esta clase limpia y centrada solo en la interfaz.
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    activity.asociarUsuarioConToken(userId);
+                }
+            });
+        }
+
+
     }
 
+
+    /**
+     * Este es el método que es llamado desde WebAppInterface.
+     * Su trabajo es coordinar el envío del userId y el token FCM al servidor.
+     *
+     * @param userId El ID del usuario que viene de la web.
+     */
+    public void asociarUsuarioConToken(String userId) {
+        Log.d("asociarUsuarioConToken", "Iniciando asociación de usuario " + userId + " con token FCM.");
+
+        // 1. Obtener el token FCM desde SharedPreferences
+        SharedPreferences prefs = getSharedPreferences("FCM_PREFS", Context.MODE_PRIVATE);
+        // Leemos el valor guardado. Si no existe, devolvemos null.
+        String fcmToken = prefs.getString("FCM_TOKEN", null);
+
+        // 2. Comprobar que tenemos ambos datos
+        if (userId != null && !userId.isEmpty() && fcmToken != null && !fcmToken.isEmpty()) {
+
+            Log.d("MainActivityIdToken", "Datos listos para enviar al servidor:");
+            Log.d("MainActivityIdToken", " - User ID: " + userId);
+            Log.d("MainActivityIdToken", " - FCM Token: " + fcmToken);
+
+            // =============================================================
+            // AQUÍ ES DONDE HAREMOS LA LLAMADA AL SERVIDOR CON RETROFIT
+            // POR AHORA, SOLO MOSTRAMOS LOS LOGS PARA CONFIRMAR
+            // =============================================================
+            // TODO: Implementar la llamada de red con Retrofit
+             enviarDatosAlServidor(userId, fcmToken);
+
+
+        } else {
+            // Si falta alguno de los datos, lo indicamos en los logs.
+            Log.w("MainActivity", "Faltan datos para asociar. No se puede enviar al servidor.");
+            if (userId == null || userId.isEmpty()) {
+                Log.w("MainActivity", " - User ID es nulo o vacío.");
+            }
+            if (fcmToken == null || fcmToken.isEmpty()) {
+                Log.w("MainActivity", " - FCM Token es nulo o no se ha guardado aún.");
+            }
+        }
+    }
 
     public void reloadAndShowProgress() {
         // 1. Mostrar la barra de progreso ANTES de la recarga
@@ -283,6 +399,10 @@ private void setupWebView() {
     private void loadHomePage() {
         String homeUrl = viewModel.getHomeUrl();
         binding.webView.loadUrl(homeUrl);
+    }
+
+    private String getHomPage(){
+        return viewModel.getHomeUrl();
     }
 
     private void startQRScanner() {
