@@ -28,6 +28,7 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
         android:contentDescription="Escanear QR"
+        android:visibility="gone"
         app:backgroundTint="#1B1D1C"
         app:fabSize="normal"
         app:maxImageSize="40dp"

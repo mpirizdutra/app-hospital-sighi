@@ -12,7 +12,7 @@ public class NavigationViewModel {
     private ConfigManager configManager;
     private String baseUrl;
     private String codigoQr;
-    private String parametro="/api/dependencias/equipos/";
+
     public NavigationViewModel(ConfigManager configManager) {
         this.configManager = configManager;
         this.baseUrl = buildBaseUrl();
@@ -59,15 +59,15 @@ public class NavigationViewModel {
             }
             String tipo = json.getString("tipo");
 
-            // Verificación de la KEY 2: "id_unico"
-            if (!json.has("id_unico")) {
+            // Verificación de la KEY 2: "codigo"
+            if (!json.has("codigo")) {
                 mostrarMensajeAlUsuario("QR válido, pero falta la key 'id_unico'.");
                 return;
             }
-            String idUnico = json.getString("id_unico");
+            String codigo = json.getString("codigo");
 
-            if (idUnico.startsWith("sighi_") && "activo".equals(tipo)) {
-                this.codigoQr=idUnico;
+            if (!codigo.isEmpty() && "activo".equals(tipo)) {
+                this.codigoQr=codigo;
             } else {
                 mostrarMensajeAlUsuario("ID de activo no tiene el prefijo 'sighi_'.");
             }
@@ -90,19 +90,17 @@ public class NavigationViewModel {
         Log.d("QR_APP_MSG", "Mensaje al usuario: " + mensaje);
     }
 
-    public String buildUrlFromQR(String qrData) {
+    public String buildUrlFromQR(String qrData){//,String moduloUrl) {
 
         if (qrData == null || qrData.isEmpty()) {
             return "";
         }
         procesarLecturaQR(qrData);
-        if(this.codigoQr.isEmpty() || this.codigoQr.length()<=0){
+        if(this.codigoQr.isEmpty()){
             return  "";
         }
 
-
-
-        return baseUrl + this.parametro + this.codigoQr;
+        return codigoQr;//baseUrl+ moduloUrl + "?qrCode=" + this.codigoQr;
     }
 
     public String getBaseUrl() {

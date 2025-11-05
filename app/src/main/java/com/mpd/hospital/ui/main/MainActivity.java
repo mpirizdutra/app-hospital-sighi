@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -43,7 +44,7 @@ public class MainActivity extends AppCompatActivity {
     private ConfigManager configManager;
     private ActivityResultLauncher<String> requestPermissionLauncher;
     private ActivityResultLauncher<ScanOptions> qrScanLauncher;
-
+    private String moduloUrl="";
 
 
     @Override
@@ -138,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-
+ //depues hay que ver si entro por una notificacion ver que hacer?¡?¡
     private void checkForNotificationIntent() {
         // Si la app se abrió desde una notificación
         Intent intent = getIntent();
@@ -149,8 +150,10 @@ public class MainActivity extends AppCompatActivity {
             if ( url != null) {
                 // Cargar URL si viene de notificación
                 if (url != null && !url.isEmpty()) {
-                    String fullUrl = viewModel.buildUrlFromQR(url);
-                    binding.webView.loadUrl(fullUrl);
+                    //String fullUrl = viewModel.buildUrlFromQR(url);
+                    //binding.webView.loadUrl(fullUrl);
+                    Toast.makeText(this, "checkForNotificationIntent() -> Entre por una notificacion, No hace nada solo muetra un msj " + url, Toast.LENGTH_SHORT).show();
+
                 }
             }
         }
@@ -220,6 +223,7 @@ private void setupWebView() {
         @Override
         public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
             super.onPageStarted(view, url, favicon);
+            binding.fabQR.setVisibility(View.GONE);
             // Aunque el usuario no haya deslizado, si empieza una carga nueva,
             // es buena idea mostrar el spinner para dar feedback visual.
             if (!binding.swipeRefreshLayout.isRefreshing()) {
@@ -246,7 +250,7 @@ private void setupWebView() {
 
 }
 
-    public class WebAppInterface {
+public class WebAppInterface {
 
 
         private final MainActivity activity;
@@ -266,6 +270,7 @@ private void setupWebView() {
                 }
             });
         }
+
 
         /**
          * Este método es llamado por JavaScript después de un login exitoso.
@@ -290,10 +295,48 @@ private void setupWebView() {
             });
         }
 
+        /**
+         * Este método es llamado por JavaScript cuando esta en cierto mudlo (solicitantes,tecnico).
+         * Recibe string saber donde esta ejm /solicitante, para depues poder hacer algo como ruta_hom/solicitante?qr=codigo.
+         * La anotación @JavascriptInterface es OBLIGATORIA.
+         *
+         * @param parametroUrl  viene como un String desde la web.
+         */
+        @android.webkit.JavascriptInterface
+        public void HabilitarBusquedaEquipoQr(String parametroUrl) {
+
+            Log.d("WebAppInterface-Qr", "parametro" + parametroUrl);
+
+
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    activity.HabilitarQrModulo(parametroUrl);
+                }
+            });
+        }
+
 
     }
 
+    /**
+     * Este es el método que es llamado desde WebAppInterface HabilitarBusquedaEquipoQr.
+     * Su trabajo habilitar Scaner qr y guardar el parametro del modulo ruta actula.
+     *
+     * @param parametroUrl El parametroUrl viene de la web.
+     */
+    public void HabilitarQrModulo(String parametroUrl) {
 
+
+        this.moduloUrl = parametroUrl;
+
+
+        if (parametroUrl.contains("/solicitudes") || parametroUrl.contains("/tecnico")) {
+            binding.fabQR.setVisibility(View.VISIBLE);
+        } else {
+            binding.fabQR.setVisibility(View.GONE);
+        }
+    }
     /**
      * Este es el método que es llamado desde WebAppInterface.
      * Su trabajo es coordinar el envío del userId y el token FCM al servidor.
@@ -405,6 +448,8 @@ private void setupWebView() {
 
     private void loadHomePage() {
         String homeUrl = viewModel.getHomeUrl();
+        Toast.makeText(this, "Cargando: " + homeUrl, Toast.LENGTH_SHORT).show();
+
         binding.webView.loadUrl(homeUrl);
     }
 
@@ -425,13 +470,34 @@ private void setupWebView() {
     }
 
     private void handleQRCode(String qrData) {
-        String url = viewModel.buildUrlFromQR(qrData);
-        if(!url.isEmpty()){
-            //binding.webView.loadUrl(url);
-            Toast.makeText(this, "Cargando: " + url, Toast.LENGTH_SHORT).show();
+        //String url = viewModel.buildUrlFromQR(qrData);//,moduloUrl);
+        String codigoQr = viewModel.buildUrlFromQR(qrData);
+        if(!codigoQr.isEmpty()){
+           // binding.webView.loadUrl(url);
+            ejecutarScriptBusquedaWeb(codigoQr);
+            Toast.makeText(this, "Cargando: " + codigoQr, Toast.LENGTH_SHORT).show();
         }else{
             Toast.makeText(this, "Qr corrupto: " + qrData  , Toast.LENGTH_SHORT).show();
         }
+
+
+    }
+
+    public void ejecutarScriptBusquedaWeb(String qrCode) {
+
+
+        final String codigoEscaneado = qrCode;
+
+        String jsCommand = "javascript:buscarEquipoPorCodigo('" + codigoEscaneado + "')";
+
+        // El método 'evaluateJavascript' ejecuta el JS en el hilo correcto
+        binding.webView.evaluateJavascript(jsCommand, new ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String value) {
+                // Este callback es opcional; recibe el valor de retorno del JS si existe.
+                Log.d("WebViewCall", "Valor retornado por JS: " + value);
+            }
+        });
 
 
     }
