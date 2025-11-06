@@ -7,12 +7,13 @@
 
 
         android {
-    namespace = "com.mpd.hospital"//.qrscanner"
-    compileSdk = 36
+    namespace = "com.mpd.hospital"
+            compileSdk = 36
+            //.qrscanner"
 
-    defaultConfig {
+            defaultConfig {
         applicationId = "com.mpd.hospital"
-        minSdk = 30
+        minSdk = 29
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
